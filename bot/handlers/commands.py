@@ -3,7 +3,7 @@
 """
 
 import logging
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message
 
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.message(Command("start"))
+@router.message(F.text == "⬅️ Главное меню")
 async def cmd_start(message: Message, user_repo: UserRepository):
     """Обработка команды /start"""
     user = message.from_user
@@ -59,6 +60,7 @@ async def cmd_start(message: Message, user_repo: UserRepository):
 
 
 @router.message(Command("help"))
+@router.message(F.text == "📖 Помощь")
 async def cmd_help(message: Message, action_repo: ActionRepository):
     """Показать доступные паки действий"""
 
@@ -137,6 +139,7 @@ async def cmd_pack(message: Message, action_repo: ActionRepository):
 
 
 @router.message(Command("stats"))
+@router.message(F.text == "📊 Моя статистика")
 async def cmd_stats(
     message: Message,
     user_repo: UserRepository,
@@ -170,6 +173,7 @@ async def cmd_stats(
 
 
 @router.message(Command("admin"))
+@router.message(F.text == "⚙️ Админ-панель")
 async def cmd_admin(message: Message, action_stat_repo: ActionStatRepository):
     """Админ-панель с глобальной статистикой"""
     if message.from_user.id != settings.admin_id:

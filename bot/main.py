@@ -10,7 +10,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import BotCommand, BotCommandScopeDefault
+from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
 
 # Конфигурация и логирование
 from bot.core.config import settings
@@ -32,19 +32,32 @@ logger = logging.getLogger(__name__)
 
 
 async def set_bot_commands(bot: Bot):
-    """Установка списка команд бота"""
-    from bot.core.commands import CMD
+    """Установка списка команд бота для разных пользователей"""
 
-    commands_list = [
-        BotCommand(command="start", description=CMD.DESC_START),
-        BotCommand(command="help", description=CMD.DESC_HELP),
-        BotCommand(command="pack", description=CMD.DESC_PACK),
-        BotCommand(command="stats", description=CMD.DESC_STATS),
-        BotCommand(command="admin", description=CMD.DESC_ADMIN),
+    # === КОМАНДЫ ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ ===
+    user_commands = [
+        BotCommand(command="start", description="🚀 Запустить бота"),
+        BotCommand(command="help", description="📖 Список паков действий"),
+        BotCommand(command="pack", description="📦 Действия в конкретном паке"),
+        BotCommand(command="stats", description="📊 Моя статистика"),
     ]
 
-    await bot.set_my_commands(commands_list, scope=BotCommandScopeDefault())
-    logger.info("✅ Команды бота обновлены в Telegram")
+    await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
+    logger.info("✅ Команды для обычных пользователей установлены")
+
+    # === КОМАНДЫ ДЛЯ АДМИНА (все + админские) ===
+    admin_commands = [
+        BotCommand(command="start", description="🚀 Запустить бота"),
+        BotCommand(command="help", description="📖 Список паков действий"),
+        BotCommand(command="pack", description="📦 Действия в конкретном паке"),
+        BotCommand(command="stats", description="📊 Моя статистика"),
+        BotCommand(command="admin", description="⚙️ Админ-панель"),
+    ]
+
+    await bot.set_my_commands(
+        admin_commands, scope=BotCommandScopeChat(chat_id=settings.admin_id)
+    )
+    logger.info("✅ Команды для администратора установлены")
 
 
 async def send_admin_notification(bot: Bot, message: str):
