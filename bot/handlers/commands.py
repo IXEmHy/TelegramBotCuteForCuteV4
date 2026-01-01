@@ -59,8 +59,8 @@ async def cmd_start(message: Message, user_repo: UserRepository):
     await message.answer(welcome_text, parse_mode="HTML", reply_markup=keyboard)
 
 
-@router.message(F.text == CMD.BTN_ACTIONS)
 @router.message(Command("help"))
+@router.message(F.text == CMD.BTN_HELP_TEXT)
 async def cmd_help(message: Message, action_repo: ActionRepository):
     """Показать доступные паки действий"""
 
@@ -138,7 +138,7 @@ async def cmd_pack(message: Message, action_repo: ActionRepository):
     await message.answer(text[:4000], parse_mode="HTML")
 
 
-@router.message(F.text == CMD.BTN_HOW_TO_USE)
+@router.message(F.text == CMD.BTN_HOW_TO_USE_TEXT)
 async def use_bot_info(message: Message):
     """Инструкция по использованию бота"""
     await message.answer(
@@ -152,8 +152,8 @@ async def use_bot_info(message: Message):
     )
 
 
-@router.message(F.text == CMD.BTN_MY_STATS)
 @router.message(Command("stats"))
+@router.message(F.text == CMD.BTN_STATS_TEXT)
 async def cmd_stats(
     message: Message,
     user_repo: UserRepository,
@@ -187,8 +187,9 @@ async def cmd_stats(
 
 
 @router.message(Command("admin"))
+@router.message(F.text == CMD.BTN_ADMIN_PANEL_TEXT)
 async def cmd_admin(message: Message):
-    """Админ-панель (заглушка)"""
+    """Админ-панель"""
     if message.from_user.id != settings.admin_id:
         return
 
@@ -201,7 +202,7 @@ async def cmd_admin(message: Message):
     await message.answer(text, parse_mode="HTML")
 
 
-@router.message(F.text == CMD.BTN_ADMIN_STATS)
+@router.message(F.text == CMD.BTN_ADMIN_STATS_TEXT)
 async def admin_stats_button(message: Message, action_stat_repo: ActionStatRepository):
     """Глобальная статистика (кнопка)"""
     if message.from_user.id != settings.admin_id:
