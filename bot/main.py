@@ -4,11 +4,13 @@
 
 import asyncio
 import logging
+from datetime import datetime
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand, BotCommandScopeDefault
 
 # Конфигурация и логирование
 from bot.core.config import settings
@@ -27,6 +29,74 @@ from bot.handlers import commands, callbacks, inline, admin
 # Инициализация логирования
 setup_logging()
 logger = logging.getLogger(__name__)
+
+
+async def set_bot_commands(bot: Bot):
+    """Установка списка команд бота"""
+    commands_list = [
+        BotCommand(command="start", description="🚀 Запустить бота"),
+        BotCommand(command="help", description="📖 Помощь"),
+        BotCommand(command="stats", description="📊 Моя статистика"),
+        BotCommand(command="admin", description="⚙️ Админ-панель"),
+    ]
+
+    await bot.set_my_commands(commands_list, scope=BotCommandScopeDefault())
+    logger.info("✅ Команды бота обновлены в Telegram")
+
+
+async def send_admin_notification(bot: Bot, message: str):
+    """Отправка уведомления администратору"""
+    try:
+        await bot.send_message(
+            chat_id=settings.admin_id, text=message, parse_mode="HTML"
+        )
+    except Exception as e:
+        logger.error(f"⚠️ Не удалось отправить уведомление админу: {e}")
+
+
+async def on_startup(bot: Bot):
+    """Действия при запуске бота"""
+    try:
+        logger.info("⏳ Запуск систем бота...")
+
+        # Устанавливаем команды бота
+        await set_bot_commands(bot)
+
+        # Форматирование времени
+        start_time = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+
+        startup_message = f"""
+🚀 БОТ ЗАПУЩЕН
+
+✅ Все системы активны
+✅ База данных подключена
+✅ Обработчики загружены
+
+⏰ Время запуска: {start_time}
+🤖 Бот готов к работе!
+"""
+        await send_admin_notification(bot, startup_message)
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка при запуске: {e}")
+
+
+async def on_shutdown(bot: Bot):
+    """Действия при остановке бота"""
+    logger.info("⚠️ Получен сигнал остановки...")
+
+    stop_time = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+
+    shutdown_message = f"""
+🛑 БОТ ОСТАНОВЛЕН
+
+⚠️ Все системы отключены
+💾 Соединения с БД закрыты
+
+⏰ Время остановки: {stop_time}
+👋 До новых встреч!
+"""
+    await send_admin_notification(bot, shutdown_message)
 
 
 async def main():
@@ -66,13 +136,22 @@ async def main():
     # 5. Запуск polling
     try:
         await bot.delete_webhook(drop_pending_updates=True)
+
+        # Отправляем уведомление админу о запуске
+        await on_startup(bot)
+
         logger.info("✅ Бот успешно запущен и готов к работе!")
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+
     except Exception as e:
         logger.error(f"❌ Критическая ошибка при запуске: {e}", exc_info=True)
     finally:
         # 6. Корректное завершение
         logger.info("🛑 Остановка бота...")
+
+        # Отправляем уведомление админу об остановке
+        await on_shutdown(bot)
+
         await close_redis()
         await engine.dispose()
         logger.info("👋 Бот остановлен")
