@@ -62,7 +62,7 @@ async def handle_interaction_callback(
             )
             return
 
-        # Получаем данные действия из БД
+        # Получаем данные действия из БД (теперь это dict)
         action_data = await action_repo.get_by_id(action_id)
         if not action_data:
             await callback.answer("❌ Действие больше не доступно", show_alert=True)
@@ -72,11 +72,11 @@ async def handle_interaction_callback(
                 pass
             return
 
-        # Извлекаем данные действия для сообщения
-        action_name = action_data.name
-        emoji = action_data.emoji
-        past_tense = action_data.past_tense
-        genitive_noun = action_data.genitive_noun
+        # Извлекаем данные действия для сообщения (dict, не объект!)
+        action_name = action_data["name"]
+        emoji = action_data["emoji"]
+        past_tense = action_data["past_tense"]
+        genitive_noun = action_data["genitive_noun"]
 
         # Инициализируем сервисы
         user_service = UserService(user_repo)

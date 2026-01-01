@@ -42,7 +42,8 @@ class ActionService:
                     'infinitive': str,
                     'past_tense': str,
                     'genitive_noun': str,
-                    'display_order': int
+                    'display_order': int,
+                    'pack': str
                 }
         """
         # Пытаемся получить из кэша
@@ -55,26 +56,13 @@ class ActionService:
         # Загружаем из БД
         actions = await self.action_repo.get_all_active()
 
-        # Конвертируем в словари
-        actions_data = [
-            {
-                "id": action.id,
-                "name": action.name,
-                "emoji": action.emoji,
-                "infinitive": action.infinitive,
-                "past_tense": action.past_tense,
-                "genitive_noun": action.genitive_noun,
-                "display_order": action.display_order,
-            }
-            for action in actions
-        ]
-
-        # Сохраняем в кэш
+        # ✅ ИСПРАВЛЕНО: ActionRepository уже возвращает list[dict]
+        # Сохраняем в кэш напрямую
         if self.cache:
-            await self.cache.set_actions(actions_data)
+            await self.cache.set_actions(actions)
 
-        logger.debug(f"💾 Загружено {len(actions_data)} действий из БД")
-        return actions_data
+        logger.debug(f"💾 Загружено {len(actions)} действий из БД")
+        return actions
 
     async def get_action_by_name(self, name: str) -> Optional[dict]:
         """
@@ -97,21 +85,11 @@ class ActionService:
         if not action:
             return None
 
-        action_data = {
-            "id": action.id,
-            "name": action.name,
-            "emoji": action.emoji,
-            "infinitive": action.infinitive,
-            "past_tense": action.past_tense,
-            "genitive_noun": action.genitive_noun,
-            "display_order": action.display_order,
-        }
-
         # Сохраняем в кэш
         if self.cache:
-            await self.cache.set_action(name, action_data)
+            await self.cache.set_action(name, action)
 
-        return action_data
+        return action
 
     async def search_actions(self, query: str) -> list[dict]:
         """
@@ -124,19 +102,7 @@ class ActionService:
             list[dict]: Найденные действия
         """
         actions = await self.action_repo.search(query)
-
-        return [
-            {
-                "id": action.id,
-                "name": action.name,
-                "emoji": action.emoji,
-                "infinitive": action.infinitive,
-                "past_tense": action.past_tense,
-                "genitive_noun": action.genitive_noun,
-                "display_order": action.display_order,
-            }
-            for action in actions
-        ]
+        return actions
 
     async def increment_usage(self, action_name: str, user_id: int):
         """

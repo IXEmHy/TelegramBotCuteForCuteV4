@@ -194,9 +194,9 @@ async def process_noun(
             await cache.invalidate_actions()
 
         await message.answer(
-            f"✅ Действие <b>{new_action.name}</b> успешно добавлено!\n\n"
+            f"✅ Действие <b>{new_action['name']}</b> успешно добавлено!\n\n"
             f"<b>Превью:</b>\n"
-            f"{new_action.emoji} Пользователь хочет {new_action.infinitive}\n\n"
+            f"{new_action['emoji']} Пользователь хочет {new_action['infinitive']}\n\n"
             f"Используйте /list_actions для просмотра всех действий",
             parse_mode="HTML",
         )
@@ -238,6 +238,7 @@ async def cmd_list_actions(
     for pack_name, actions in packs.items():
         text_parts.append(f"\n<b>{pack_name}</b> ({len(actions)}):")
         for action in actions[:10]:  # Показываем первые 10
+            # ✅ ИСПРАВЛЕНО: используем доступ к словарю через []
             text_parts.append(
                 f"• {action['emoji']} {action['name']} (ID: {action['id']})"
             )
@@ -333,14 +334,15 @@ async def process_broadcast(
 
     for user in all_users:
         try:
+            # ✅ ИСПРАВЛЕНО: используем user.id вместо user.telegram_id
             await message.bot.send_message(
-                chat_id=user.telegram_id,
+                chat_id=user.id,
                 text=broadcast_text,
                 parse_mode="HTML",
             )
             success_count += 1
         except Exception as e:
-            logger.warning(f"Failed to send to {user.telegram_id}: {e}")
+            logger.warning(f"Failed to send to {user.id}: {e}")
             failed_count += 1
 
     # Итоги
