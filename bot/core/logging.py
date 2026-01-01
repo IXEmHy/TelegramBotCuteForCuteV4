@@ -54,7 +54,11 @@ def setup_logging() -> logging.Logger:
         ALLOWED_ICONS = ["🚀", "✅", "⏳", "🛑", "👋", "⚠️", "❌"]
 
         def filter(self, record):
-            msg = record.getMessage()
+            try:
+                msg = record.getMessage()
+            except (TypeError, ValueError):
+                # Если не можем получить сообщение - пропускаем
+                return False
 
             # Пускаем статусные сообщения
             if any(icon in msg for icon in self.ALLOWED_ICONS):
@@ -62,9 +66,14 @@ def setup_logging() -> logging.Logger:
 
             # Для ошибок (ERROR уровень) - только краткое сообщение
             if record.levelno >= logging.ERROR:
-                # Убираем трейсбек из консоли, оставляем только текст ошибки
-                record.msg = f"❌ Ошибка: {record.getMessage().split(chr(10))[0]}"
-                record.msg += "\n   📄 Подробности в файле: logs/bot.log"
+                # Берем первую строку ошибки
+                error_line = msg.split("\n")[0]
+
+                # Заменяем сообщение на краткое
+                record.msg = (
+                    f"❌ Ошибка: {error_line}\n   📄 Подробности в файле: logs/bot.log"
+                )
+                record.args = ()  # ВАЖНО: обнуляем аргументы!
                 record.exc_info = None  # Убираем трейсбек
                 return True
 

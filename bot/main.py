@@ -163,17 +163,37 @@ async def main():
         logger.info("✅ Бот успешно запущен и готов к работе!")
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
+    except KeyboardInterrupt:
+        logger.info("⚠️ Получен сигнал остановки...")
     except Exception as e:
-        logger.error(f"❌ Критическая ошибка при запуске: {e}", exc_info=True)
+        logger.error(f"❌ Критическая ошибка при запуске", exc_info=True)
     finally:
         # 6. Корректное завершение
         logger.info("🛑 Остановка бота...")
 
-        # Отправляем уведомление админу об остановке
-        await on_shutdown(bot)
+        # Отправляем уведомление админу об остановке (с обработкой ошибок)
+        try:
+            await on_shutdown(bot)
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось отправить уведомление об остановке: {e}")
 
-        await close_redis()
-        await engine.dispose()
+        # Закрываем соединения
+        try:
+            await close_redis()
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при закрытии Redis: {e}")
+
+        try:
+            await engine.dispose()
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при закрытии БД: {e}")
+
+        # Закрываем сессию бота
+        try:
+            await bot.session.close()
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при закрытии сессии бота: {e}")
+
         logger.info("👋 Бот остановлен")
 
 
@@ -181,4 +201,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Бот остановлен вручную")
+        logger.info("👋 Бот остановлен вручную")
