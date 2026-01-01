@@ -33,13 +33,6 @@ async def handle_interaction_callback(
     Обработка нажатий на кнопки Принять/Отказаться для взаимодействий.
 
     Формат callback_data: iact:{sender_id}:{action_id}:{accept=1/0}
-
-    Логика:
-    1. Проверяет валидность действия (нельзя принять свое)
-    2. Получает данные о действии из БД (Action)
-    3. Создает запись взаимодействия (Interaction)
-    4. Обновляет статистику (ActionStat)
-    5. Редактирует сообщение с итогом
     """
     try:
         # Парсим callback data
@@ -82,8 +75,12 @@ async def handle_interaction_callback(
         user_service = UserService(user_repo)
         interaction_service = InteractionService(interaction_repo)
 
-        # Регистрируем/обновляем пользователей
-        sender = await user_service.get_or_create_user(sender_id)
+        # Регистрируем/обновляем пользователей (используем правильный метод!)
+        sender = await user_repo.get_by_id(sender_id)
+        if not sender:
+            await callback.answer("❌ Отправитель не найден", show_alert=True)
+            return
+
         await user_service.register_or_update_user(receiver)
 
         # Определяем статус
@@ -99,10 +96,8 @@ async def handle_interaction_callback(
         )
 
         # Обновляем статистику действий
-        # 1. Счетчик полученных для получателя
         await action_stat_repo.increment_received(receiver.id, action_name)
 
-        # 2. Счетчик принятых/отклоненных для получателя
         if is_accept:
             await action_stat_repo.increment_accepted(receiver.id, action_name)
         else:

@@ -2,9 +2,9 @@
 Обработчик inline запросов (@bot ...)
 
 ВОЗМОЖНОСТИ:
-- Топ-5 персональных действий пользователя
-- Показ всех действий из стандартного пака (до 50 штук из-за лимита Telegram)
+- Топ-10 самых популярных действий (глобально)
 - Поиск по действиям
+- Информационное сообщение про полный список
 """
 
 import logging
@@ -35,14 +35,7 @@ logger = logging.getLogger(__name__)
 def create_action_result(
     action_data: dict, sender, result_id: str = None
 ) -> InlineQueryResultArticle:
-    """
-    Создать inline результат для действия
-
-    Args:
-        action_data: Данные действия из БД
-        sender: Отправитель (query.from_user)
-        result_id: ID результата (опционально)
-    """
+    """Создать inline результат для действия"""
     action_id = action_data["id"]
     action_name = action_data["name"]
     emoji = action_data["emoji"]
@@ -81,61 +74,103 @@ def create_action_result(
     )
 
 
-async def show_favorites_and_catalog(
+async def get_global_top_actions(
+    action_stat_repo: ActionStatRepository,
+    action_service: ActionService,
+    limit: int = 10,
+) -> list[dict]:
+    """
+    Получить топ-N самых популярных действий глобально
+
+    Returns:
+        list[dict]: Список действий с их данными
+    """
+    from sqlalchemy import select, func
+    from bot.database.models import Interaction
+
+    # Получаем топ действий по количеству использований
+    query = (
+        select(Interaction.action, func.count(Interaction.id).label("count"))
+        .group_by(Interaction.action)
+        .order_by(func.count(Interaction.id).desc())
+        .limit(limit)
+    )
+
+    result = await action_stat_repo.session.execute(query)
+    top_actions_data = result.all()
+
+    # Загружаем полные данные действий
+    all_actions_dict = {
+        action["name"]: action for action in await action_service.get_all_actions()
+    }
+
+    top_actions = []
+    for action_name, count in top_actions_data:
+        action_data = all_actions_dict.get(action_name)
+        if action_data:
+            action_data["usage_count"] = count
+            top_actions.append(action_data)
+
+    return top_actions
+
+
+async def show_popular_and_info(
     query: InlineQuery,
     action_service: ActionService,
     action_stat_repo: ActionStatRepository,
 ):
     """
-    Показать избранные действия пользователя + кнопку каталога
+    Показать топ-10 популярных действий + информационное сообщение
     """
     sender = query.from_user
     results = []
 
-    # Получаем топ-5 действий пользователя
-    top_actions = await action_stat_repo.get_user_top_actions(sender.id, limit=5)
+    # Получаем топ-10 популярных действий глобально
+    try:
+        top_actions = await get_global_top_actions(
+            action_stat_repo, action_service, limit=10
+        )
+    except Exception as e:
+        logger.warning(f"⚠️ Не удалось загрузить популярные действия: {e}")
+        # Если нет статистики - показываем первые 10 действий
+        all_actions = await action_service.get_all_actions()
+        top_actions = all_actions[:10]
 
     if top_actions:
-        # Загружаем полные данные действий
-        all_actions_dict = {
-            action["name"]: action for action in await action_service.get_all_actions()
-        }
-
-        # Добавляем заголовок для избранных
+        # Добавляем заголовок
         results.append(
             InlineQueryResultArticle(
                 id=str(uuid4()),
-                title="⭐ Ваши любимые действия",
-                description=f"Топ-{len(top_actions)} часто используемых",
+                title="🔥 Самые популярные действия",
+                description=f"Топ-{len(top_actions)} действий среди всех пользователей",
                 input_message_content=InputTextMessageContent(
                     message_text="💡 Выберите действие из списка ниже"
                 ),
             )
         )
 
-        # Добавляем топ-5 действий
-        for top_action in top_actions:
-            action_name = top_action["action_name"]
-            count = top_action["count"]
+        # Добавляем популярные действия
+        for action_data in top_actions:
+            result = create_action_result(action_data, sender)
+            # Если есть статистика - показываем
+            if "usage_count" in action_data:
+                result.description = f"Использовано: {action_data['usage_count']} раз"
+            results.append(result)
 
-            action_data = all_actions_dict.get(action_name)
-            if action_data:
-                result = create_action_result(action_data, sender)
-                # Обновляем описание с количеством использований
-                result.description = f"Использовано: {count} раз"
-                results.append(result)
-
-    # Добавляем кнопку "Показать все действия"
+    # Добавляем информационное сообщение про полный список
     results.append(
         InlineQueryResultArticle(
             id=str(uuid4()),
-            title="📋 Показать все действия",
-            description="Введите 'все' для просмотра полного каталога",
+            title="📋 Полный список действий",
+            description="Как посмотреть все доступные действия",
             input_message_content=InputTextMessageContent(
                 message_text=(
-                    "💡 **Как использовать:**\n\n"
-                    "Введите `@CuteForCuteBot все` для просмотра всех действий\n"
-                    "или начните вводить название для поиска"
+                    "📋 **Все доступные действия:**\n\n"
+                    "Всего доступно 65+ действий!\n\n"
+                    "**Как найти нужное:**\n"
+                    "• Начните вводить название (например: `обн`, `поц`, `уд`)\n"
+                    "• Бот покажет все подходящие варианты\n\n"
+                    "💡 **Совет:** Используйте поиск для быстрого доступа к нужному действию!"
                 ),
                 parse_mode="Markdown",
             ),
@@ -145,44 +180,10 @@ async def show_favorites_and_catalog(
     return results
 
 
-async def show_all_actions(
-    query: InlineQuery, action_service: ActionService
-) -> list[InlineQueryResultArticle]:
-    """
-    Показать все действия (максимум 49 + заголовок = 50)
-    """
-    sender = query.from_user
-    all_actions = await action_service.get_all_actions()
-
-    total_count = len(all_actions)
-
-    # Ограничиваем до 49 действий (+ 1 заголовок = 50 макс.)
-    limited_actions = all_actions[:49]
-
-    results = [
-        InlineQueryResultArticle(
-            id=str(uuid4()),
-            title=f"📦 Все действия ({total_count} шт.)",
-            description=f"Показано первых {len(limited_actions)} действий",
-            input_message_content=InputTextMessageContent(
-                message_text="💡 Выберите действие из списка ниже"
-            ),
-        )
-    ]
-
-    # Добавляем действия
-    for action_data in limited_actions:
-        results.append(create_action_result(action_data, sender))
-
-    return results
-
-
 async def search_actions(
     query: InlineQuery, action_service: ActionService, search_query: str
 ) -> list[InlineQueryResultArticle]:
-    """
-    Поиск действий по запросу
-    """
+    """Поиск действий по запросу"""
     sender = query.from_user
     found_actions = await action_service.search_actions(search_query)
 
@@ -202,7 +203,7 @@ async def search_actions(
         InlineQueryResultArticle(
             id=str(uuid4()),
             title=f"🔍 Результаты поиска: {len(found_actions)}",
-            description=f"Найдено действий по запросу '{search_query}'",
+            description=f"Найдено по запросу '{search_query}'",
             input_message_content=InputTextMessageContent(
                 message_text="💡 Выберите действие из результатов поиска"
             ),
@@ -227,9 +228,8 @@ async def inline_query_handler(
     Главный обработчик inline запросов
 
     ЛОГИКА:
-    1. Пустой запрос → Топ-5 + кнопка "Показать все"
-    2. "все" или "all" → Показать все действия (макс. 50)
-    3. Любой текст → Поиск по действиям
+    1. Пустой запрос → Топ-10 популярных + инфо про полный список
+    2. Любой текст → Поиск по действиям
     """
     try:
         # Регистрируем пользователя
@@ -243,27 +243,24 @@ async def inline_query_handler(
         # Получаем запрос пользователя
         query_text = query.query.lower().strip()
 
-        # === РЕЖИМ 1: Пустой запрос - показать избранные + каталог ===
+        # === РЕЖИМ 1: Пустой запрос - показать популярные + инфо ===
         if not query_text:
-            results = await show_favorites_and_catalog(
+            results = await show_popular_and_info(
                 query, action_service, action_stat_repo
             )
 
-        # === РЕЖИМ 2: Запрос "все" - показать все действия ===
-        elif query_text in ["все", "all", "catalog", "каталог"]:
-            results = await show_all_actions(query, action_service)
-
-        # === РЕЖИМ 3: Поиск по действиям ===
+        # === РЕЖИМ 2: Поиск по действиям ===
         else:
             results = await search_actions(query, action_service, query_text)
 
-        # Отправляем результаты (максимум 50)
-        await query.answer(results[:50], cache_time=5, is_personal=True)
+        # Отправляем результаты (строго ограничиваем до 50)
+        results_to_send = results[:50]
+        await query.answer(results_to_send, cache_time=5, is_personal=True)
 
         logger.debug(
             f"👤 {query.from_user.full_name} ({query.from_user.id}) | "
             f"Запрос: '{query_text}' | "
-            f"Результатов: {len(results)}"
+            f"Результатов: {len(results_to_send)}"
         )
 
     except Exception as e:
