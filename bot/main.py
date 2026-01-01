@@ -34,24 +34,28 @@ logger = logging.getLogger(__name__)
 async def set_bot_commands(bot: Bot):
     """Установка списка команд бота для разных пользователей"""
 
-    # === КОМАНДЫ ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ ===
+    # === КОМАНДЫ ДЛЯ ОБЫЧНЫХ ПОЛЬЗОВАТЕЛЕЙ ===
     user_commands = [
-        BotCommand(command="start", description="🚀 Запустить бота"),
-        BotCommand(command="help", description="📖 Список паков действий"),
-        BotCommand(command="pack", description="📦 Действия в конкретном паке"),
+        BotCommand(command="start", description="🏠 Главное меню"),
+        BotCommand(command="help", description="📖 Список действий"),
+        BotCommand(command="pack", description="📦 Паки действий"),
         BotCommand(command="stats", description="📊 Моя статистика"),
     ]
 
     await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
     logger.info("✅ Команды для обычных пользователей установлены")
 
-    # === КОМАНДЫ ДЛЯ АДМИНА (все + админские) ===
+    # === КОМАНДЫ ДЛЯ АДМИНА ===
     admin_commands = [
-        BotCommand(command="start", description="🚀 Запустить бота"),
-        BotCommand(command="help", description="📖 Список паков действий"),
-        BotCommand(command="pack", description="📦 Действия в конкретном паке"),
+        BotCommand(command="start", description="🏠 Главное меню"),
+        BotCommand(command="help", description="📖 Список действий"),
+        BotCommand(command="pack", description="📦 Паки действий"),
         BotCommand(command="stats", description="📊 Моя статистика"),
-        BotCommand(command="admin", description="⚙️ Админ-панель"),
+        BotCommand(command="stats_global", description="📊 Глобальная статистика"),
+        BotCommand(command="add_action", description="➕ Добавить действие"),
+        BotCommand(command="list_actions", description="📋 Список действий"),
+        BotCommand(command="cache_clear", description="🗑 Очистить кэш"),
+        BotCommand(command="broadcast", description="📢 Рассылка"),
     ]
 
     await bot.set_my_commands(

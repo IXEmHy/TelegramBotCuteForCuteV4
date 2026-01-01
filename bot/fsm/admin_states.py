@@ -1,22 +1,21 @@
 """
-Состояния FSM для админ-панели
+FSM состояния для админ-панели
 """
 
 from aiogram.fsm.state import State, StatesGroup
 
 
 class ActionAddStates(StatesGroup):
-    """Состояния добавления нового действия"""
+    """Состояния для добавления действия"""
 
-    waiting_for_name = State()  # Название (например: "Обнять")
-    waiting_for_emoji = State()  # Эмодзи
-    waiting_for_infinitive = State()  # Инфинитив (что сделать? обнять)
-    waiting_for_past = State()  # Прошедшее (что сделал? обнял)
-    waiting_for_noun = State()  # Родительный (кого/чего? объятия)
-    confirm = State()  # Подтверждение
+    waiting_for_name = State()
+    waiting_for_emoji = State()
+    waiting_for_infinitive = State()
+    waiting_for_past = State()
+    waiting_for_noun = State()
 
 
-class ActionEditStates(StatesGroup):
-    """Состояния редактирования действия"""
+class BroadcastStates(StatesGroup):
+    """Состояния для рассылки"""
 
-    waiting_for_value = State()  # Новое значение поля
+    waiting_for_message = State()
