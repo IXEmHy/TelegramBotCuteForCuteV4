@@ -3,7 +3,7 @@
 """
 
 import logging
-from aiogram import Router
+from aiogram import Router, Bot
 from aiogram.types import CallbackQuery
 
 from bot.database.models import InteractionStatus
@@ -24,6 +24,7 @@ router = Router(name="callbacks")
 @router.callback_query(lambda c: c.data.startswith("iact:"))
 async def handle_interaction_callback(
     callback: CallbackQuery,
+    bot: Bot,
     user_repo: UserRepository,
     interaction_repo: InteractionRepository,
     action_repo: ActionRepository,
@@ -39,7 +40,7 @@ async def handle_interaction_callback(
         parts = callback.data.split(":")
         if len(parts) != 4:
             logger.error(f"Invalid callback data format: {callback.data}")
-            await callback.answer()  # Пустой ответ, без уведомления
+            await callback.answer()
             return
 
         sender_id = int(parts[1])
@@ -50,18 +51,22 @@ async def handle_interaction_callback(
 
         # Проверка: нельзя принять своё же действие
         if sender_id == receiver.id:
-            await callback.answer()
+            await callback.answer("❌ РП-шить себя нельзя!", show_alert=True)
             return
 
         # Получаем данные действия из БД
         action_data = await action_repo.get_by_id(action_id)
         if not action_data:
             await callback.answer()
-            if callback.message:
-                try:
-                    await callback.message.delete()
-                except Exception:
+            # Пытаемся удалить сообщение
+            try:
+                if callback.inline_message_id:
+                    # Для inline сообщений нельзя удалить
                     pass
+                elif callback.message:
+                    await callback.message.delete()
+            except Exception:
+                pass
             return
 
         # Извлекаем данные действия
@@ -115,7 +120,6 @@ async def handle_interaction_callback(
             await action_stat_repo.increment_declined(receiver.id, action_name)
 
         # Формируем ответное сообщение
-        # Используем полное имя пользователя
         sender_name = sender.full_name
         receiver_name = receiver.full_name
 
@@ -126,26 +130,33 @@ async def handle_interaction_callback(
             # Формат: {receiver} отказался от {genitive_noun} ❌
             new_text = f"{receiver_name} отказался от {genitive_noun} ❌"
 
-        # ВАЖНО: Отвечаем на callback БЕЗ текста (убираем часики загрузки)
+        # ВАЖНО: Отвечаем на callback БЕЗ текста
         await callback.answer()
 
-        # Обновляем сообщение (убираем кнопки, меняем текст)
-        if callback.message:
-            try:
-                logger.debug(f"Editing message: {new_text}")
-                await callback.message.edit_text(
+        # Редактируем сообщение (РАЗНЫЕ методы для inline и обычных сообщений)
+        try:
+            if callback.inline_message_id:
+                # === INLINE РЕЖИМ ===
+                logger.debug(f"Editing INLINE message: {new_text}")
+                await bot.edit_message_text(
                     text=new_text,
-                    reply_markup=None,  # Убираем кнопки
+                    inline_message_id=callback.inline_message_id,
+                    reply_markup=None,
                 )
-                logger.debug("Message edited successfully")
-            except Exception as e:
-                logger.error(f"⚠️ Не удалось обновить сообщение: {e}", exc_info=True)
-        else:
-            logger.warning("Callback.message is None - cannot edit")
+                logger.debug("Inline message edited successfully")
+            elif callback.message:
+                # === ОБЫЧНОЕ СООБЩЕНИЕ ===
+                logger.debug(f"Editing regular message: {new_text}")
+                await callback.message.edit_text(text=new_text, reply_markup=None)
+                logger.debug("Regular message edited successfully")
+            else:
+                logger.warning("Neither inline_message_id nor message available")
+
+        except Exception as e:
+            logger.error(f"⚠️ Не удалось обновить сообщение: {e}", exc_info=True)
 
     except Exception as e:
         logger.error(f"❌ Error in interaction callback: {e}", exc_info=True)
-        # Даже при ошибке отвечаем на callback
         try:
             await callback.answer()
         except Exception:

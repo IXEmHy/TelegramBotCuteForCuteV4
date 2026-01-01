@@ -58,7 +58,7 @@ def create_action_result(
 
     # Текст сообщения
     sender_link = f"[{sender.full_name}](tg://user?id={sender.id})"
-    message_text = f"{emoji} {sender_link} хочет {infinitive} вами"
+    message_text = f"{emoji} {sender_link} хочет {infinitive} вас"
 
     # Краткое название для списка
     display_name = get_short_name(action_name)
