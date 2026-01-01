@@ -59,10 +59,12 @@ async def handle_interaction_callback(
         action_data = await action_repo.get_by_id(action_id)
         if not action_data:
             await callback.answer("❌ Действие больше не доступно", show_alert=True)
-            try:
-                await callback.message.delete()
-            except Exception:
-                pass
+            # Пытаемся удалить сообщение если оно есть
+            if callback.message:
+                try:
+                    await callback.message.delete()
+                except Exception:
+                    pass
             return
 
         # Извлекаем данные действия для сообщения (dict, не объект!)
@@ -75,7 +77,7 @@ async def handle_interaction_callback(
         user_service = UserService(user_repo)
         interaction_service = InteractionService(interaction_repo)
 
-        # Регистрируем/обновляем пользователей (используем правильный метод!)
+        # Регистрируем/обновляем пользователей
         sender = await user_repo.get_by_id(sender_id)
         if not sender:
             await callback.answer("❌ Отправитель не найден", show_alert=True)
@@ -86,13 +88,16 @@ async def handle_interaction_callback(
         # Определяем статус
         status = InteractionStatus.ACCEPTED if is_accept else InteractionStatus.DECLINED
 
+        # Получаем message_id если доступен (может быть None в inline режиме)
+        message_id = callback.message.message_id if callback.message else None
+
         # Создаём запись взаимодействия
         await interaction_service.create_interaction(
             sender_id=sender_id,
             receiver_id=receiver.id,
             action=action_name,
             status=status,
-            message_id=callback.message.message_id,
+            message_id=message_id,
         )
 
         # Обновляем статистику действий
@@ -120,12 +125,16 @@ async def handle_interaction_callback(
         await callback.answer(toast_text, show_alert=False)
 
         # Обновляем сообщение (убираем кнопки, меняем текст)
-        try:
-            await callback.message.edit_text(
-                text=new_text, parse_mode="Markdown", reply_markup=None
-            )
-        except Exception as e:
-            logger.warning(f"⚠️ Не удалось обновить сообщение callback: {e}")
+        # ВАЖНО: проверяем наличие callback.message
+        if callback.message:
+            try:
+                await callback.message.edit_text(
+                    text=new_text, parse_mode="Markdown", reply_markup=None
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось обновить сообщение callback: {e}")
+        else:
+            logger.debug("Callback без привязки к сообщению (inline режим)")
 
     except Exception as e:
         logger.error(f"❌ Error in interaction callback: {e}", exc_info=True)

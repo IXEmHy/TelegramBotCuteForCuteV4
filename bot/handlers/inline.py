@@ -1,10 +1,9 @@
 """
 Обработчик inline запросов (@bot ...)
 
-ВОЗМОЖНОСТИ:
-- Топ-10 самых популярных действий (глобально)
-- Поиск по действиям
-- Информационное сообщение про полный список
+ЛОГИКА:
+- Топ-3 самых часто используемых действия пользователя
+- Информационные подсказки в описаниях
 """
 
 import logging
@@ -24,6 +23,7 @@ from bot.database.repositories import (
     UserRepository,
     ActionRepository,
     ActionStatRepository,
+    InteractionRepository,
 )
 from bot.services.cache import get_cache_service
 from bot.utils.conjugator import get_short_name
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_action_result(
-    action_data: dict, sender, result_id: str = None
+    action_data: dict, sender, result_id: str = None, description: str = ""
 ) -> InlineQueryResultArticle:
     """Создать inline результат для действия"""
     action_id = action_data["id"]
@@ -65,7 +65,7 @@ def create_action_result(
     return InlineQueryResultArticle(
         id=result_id or str(uuid4()),
         title=f"{emoji} {display_name}",
-        description="",
+        description=description,  # Теперь используем переданное описание
         input_message_content=InputTextMessageContent(
             message_text=message_text,
             parse_mode="Markdown",
@@ -74,108 +74,149 @@ def create_action_result(
     )
 
 
-async def get_global_top_actions(
-    action_stat_repo: ActionStatRepository,
+async def get_user_most_used_actions(
+    user_id: int,
+    interaction_repo: InteractionRepository,
     action_service: ActionService,
-    limit: int = 10,
+    limit: int = 3,
 ) -> list[dict]:
     """
-    Получить топ-N самых популярных действий глобально
+    Получить топ-N самых часто используемых действий КОНКРЕТНОГО пользователя
+
+    Args:
+        user_id: ID пользователя
+        interaction_repo: Репозиторий взаимодействий
+        action_service: Сервис действий
+        limit: Количество действий
 
     Returns:
-        list[dict]: Список действий с их данными
+        list[dict]: Список самых часто используемых действий
     """
     from sqlalchemy import select, func
     from bot.database.models import Interaction
 
-    # Получаем топ действий по количеству использований
+    # Получаем топ действий пользователя по количеству использований
     query = (
-        select(Interaction.action, func.count(Interaction.id).label("count"))
+        select(Interaction.action, func.count(Interaction.id).label("usage_count"))
+        .where(Interaction.sender_id == user_id)
         .group_by(Interaction.action)
         .order_by(func.count(Interaction.id).desc())
         .limit(limit)
     )
 
-    result = await action_stat_repo.session.execute(query)
-    top_actions_data = result.all()
+    result = await interaction_repo.session.execute(query)
+    most_used_actions_data = result.all()
+
+    if not most_used_actions_data:
+        return []
 
     # Загружаем полные данные действий
     all_actions_dict = {
         action["name"]: action for action in await action_service.get_all_actions()
     }
 
-    top_actions = []
-    for action_name, count in top_actions_data:
+    most_used_actions = []
+    for action_name, usage_count in most_used_actions_data:
         action_data = all_actions_dict.get(action_name)
         if action_data:
-            action_data["usage_count"] = count
-            top_actions.append(action_data)
+            most_used_actions.append(action_data)
 
-    return top_actions
+    return most_used_actions
 
 
-async def show_popular_and_info(
+async def show_user_top_actions(
     query: InlineQuery,
     action_service: ActionService,
-    action_stat_repo: ActionStatRepository,
+    interaction_repo: InteractionRepository,
 ):
     """
-    Показать топ-10 популярных действий + информационное сообщение
+    Показать топ-3 самых используемых действия пользователя
     """
     sender = query.from_user
     results = []
 
-    # Получаем топ-10 популярных действий глобально
+    # Получаем топ-3 самых используемых действия ЭТОГО пользователя
     try:
-        top_actions = await get_global_top_actions(
-            action_stat_repo, action_service, limit=10
+        top_actions = await get_user_most_used_actions(
+            user_id=sender.id,
+            interaction_repo=interaction_repo,
+            action_service=action_service,
+            limit=3,
         )
     except Exception as e:
-        logger.warning(f"⚠️ Не удалось загрузить популярные действия: {e}")
-        # Если нет статистики - показываем первые 10 действий
-        all_actions = await action_service.get_all_actions()
-        top_actions = all_actions[:10]
+        logger.warning(f"⚠️ Не удалось загрузить топ действия: {e}")
+        top_actions = []
 
+    # Если у пользователя есть история использования
     if top_actions:
-        # Добавляем заголовок
-        results.append(
-            InlineQueryResultArticle(
-                id=str(uuid4()),
-                title="🔥 Самые популярные действия",
-                description=f"Топ-{len(top_actions)} действий среди всех пользователей",
-                input_message_content=InputTextMessageContent(
-                    message_text="💡 Выберите действие из списка ниже"
-                ),
-            )
-        )
+        # Описания для каждого действия
+        descriptions = [
+            "Эти действия вы использовали чаще всего",
+            "Чтобы выбрать нужное действие начните вводить название действия",
+            "Чтобы увидеть полный список доступных вам действий перейдите в ЛС бота",
+        ]
 
-        # Добавляем популярные действия
-        for action_data in top_actions:
-            result = create_action_result(action_data, sender)
-            # Если есть статистика - показываем
-            if "usage_count" in action_data:
-                result.description = f"Использовано: {action_data['usage_count']} раз"
+        # Добавляем топ действия с описаниями
+        for idx, action_data in enumerate(top_actions):
+            description = descriptions[idx] if idx < len(descriptions) else ""
+            result = create_action_result(action_data, sender, description=description)
             results.append(result)
 
-    # Добавляем информационное сообщение про полный список
-    results.append(
-        InlineQueryResultArticle(
-            id=str(uuid4()),
-            title="📋 Полный список действий",
-            description="Как посмотреть все доступные действия",
-            input_message_content=InputTextMessageContent(
-                message_text=(
-                    "📋 **Все доступные действия:**\n\n"
-                    "Всего доступно 65+ действий!\n\n"
-                    "**Как найти нужное:**\n"
-                    "• Начните вводить название (например: `обн`, `поц`, `уд`)\n"
-                    "• Бот покажет все подходящие варианты\n\n"
-                    "💡 **Совет:** Используйте поиск для быстрого доступа к нужному действию!"
+    # Если у пользователя нет истории - показываем подсказки
+    else:
+        results.extend(
+            [
+                InlineQueryResultArticle(
+                    id=str(uuid4()),
+                    title="👋 Добро пожаловать!",
+                    description="Начните вводить название действия для поиска",
+                    input_message_content=InputTextMessageContent(
+                        message_text=(
+                            "👋 **Добро пожаловать в CuteForCute!**\n\n"
+                            "💡 **Как использовать:**\n"
+                            "1. Начните вводить название действия (обнять, поцеловать, ударить)\n"
+                            "2. Выберите нужное действие из списка\n"
+                            "3. Отправьте собеседнику!\n\n"
+                            "📋 Чтобы увидеть все действия, отправьте /pack в ЛС бота"
+                        ),
+                        parse_mode="Markdown",
+                    ),
                 ),
-                parse_mode="Markdown",
-            ),
+                InlineQueryResultArticle(
+                    id=str(uuid4()),
+                    title="🔍 Поиск действий",
+                    description="Введите название: обнять, поцеловать, погладить...",
+                    input_message_content=InputTextMessageContent(
+                        message_text=(
+                            "🔍 **Поиск действий:**\n\n"
+                            "Просто начните вводить название!\n\n"
+                            "**Примеры:**\n"
+                            "• @CuteForCutebot обн\n"
+                            "• @CuteForCutebot поц\n"
+                            "• @CuteForCutebot уд\n\n"
+                            "Бот покажет все подходящие варианты! ✨"
+                        ),
+                        parse_mode="Markdown",
+                    ),
+                ),
+                InlineQueryResultArticle(
+                    id=str(uuid4()),
+                    title="📋 Полный список действий",
+                    description="Откройте чат с ботом и отправьте /pack",
+                    input_message_content=InputTextMessageContent(
+                        message_text=(
+                            "📋 **Полный список действий:**\n\n"
+                            "Всего доступно 65+ действий!\n\n"
+                            "Чтобы увидеть полный список:\n"
+                            "1. Перейдите в личный чат с ботом\n"
+                            "2. Отправьте команду /pack\n\n"
+                            "💡 Или используйте поиск прямо здесь!"
+                        ),
+                        parse_mode="Markdown",
+                    ),
+                ),
+            ]
         )
-    )
 
     return results
 
@@ -223,12 +264,13 @@ async def inline_query_handler(
     user_repo: UserRepository,
     action_repo: ActionRepository,
     action_stat_repo: ActionStatRepository,
+    interaction_repo: InteractionRepository,
 ):
     """
     Главный обработчик inline запросов
 
     ЛОГИКА:
-    1. Пустой запрос → Топ-10 популярных + инфо про полный список
+    1. Пустой запрос → Топ-3 действия пользователя (или подсказки для новичков)
     2. Любой текст → Поиск по действиям
     """
     try:
@@ -243,10 +285,10 @@ async def inline_query_handler(
         # Получаем запрос пользователя
         query_text = query.query.lower().strip()
 
-        # === РЕЖИМ 1: Пустой запрос - показать популярные + инфо ===
+        # === РЕЖИМ 1: Пустой запрос - показать топ действия ===
         if not query_text:
-            results = await show_popular_and_info(
-                query, action_service, action_stat_repo
+            results = await show_user_top_actions(
+                query, action_service, interaction_repo
             )
 
         # === РЕЖИМ 2: Поиск по действиям ===
