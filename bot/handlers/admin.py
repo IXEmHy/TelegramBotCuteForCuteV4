@@ -4,7 +4,6 @@
 
 import logging
 import math
-from typing import Optional
 
 from aiogram import Router, F
 from aiogram.filters import Command
@@ -12,7 +11,6 @@ from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 
 from bot.core.config import settings
-from bot.database.models import Action
 from bot.database.repositories import (
     UserRepository,
     ActionRepository,
@@ -25,31 +23,21 @@ from bot.keyboards.admin_kb import (
     get_admin_menu,
     get_actions_management_menu,
     get_actions_list_kb,
-    get_action_edit_kb,
     get_cancel_kb,
 )
-from bot.fsm.admin_states import ActionAddStates, ActionEditStates
+from bot.fsm.admin_states import ActionAddStates
 
 logger = logging.getLogger(__name__)
 router = Router(name="admin")
 
-# Количество действий на одной странице
 PAGE_SIZE = 10
-
-
-# ==================== ПРОВЕРКИ ====================
 
 
 async def is_admin(user_id: int, admin_repo: AdminRepository) -> bool:
     """Проверка прав администратора"""
-    # Хардкод проверка из config (для главного админа)
     if user_id == settings.admin_id:
         return True
-    # Проверка из БД
     return await admin_repo.is_admin(user_id)
-
-
-# ==================== БАЗОВЫЕ КОМАНДЫ ====================
 
 
 @router.message(Command("admin"))
@@ -74,9 +62,6 @@ async def admin_exit(message: Message, admin_repo: AdminRepository):
     )
 
 
-# ==================== УПРАВЛЕНИЕ ДЕЙСТВИЯМИ ====================
-
-
 @router.message(F.text == "🔧 Управление действиями")
 async def manage_actions_menu(message: Message, admin_repo: AdminRepository):
     """Меню управления действиями"""
@@ -99,9 +84,7 @@ async def back_to_actions_menu(callback: CallbackQuery):
         reply_markup=get_actions_management_menu(),
         parse_mode="Markdown",
     )
-
-
-# ==================== ПРОСМОТР СПИСКА (ПАГИНАЦИЯ) ====================
+    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data.startswith("admin:action:list:"))
@@ -112,22 +95,17 @@ async def show_actions_list(
     if not await is_admin(callback.from_user.id, admin_repo):
         return
 
-    # Парсинг данных: admin:action:list:{page}:{type}
     parts = callback.data.split(":")
     page = int(parts[3])
-    # Если тип не передан, считаем 'edit'
     action_type = parts[4] if len(parts) > 4 else "edit"
 
-    # Получаем сервис
     cache = await get_cache_service()
     action_service = ActionService(action_repo, cache)
 
-    # Получаем все действия
     all_actions = await action_service.get_all_actions()
 
-    # Пагинация
     total_actions = len(all_actions)
-    total_pages = math.ceil(total_actions / PAGE_SIZE)
+    total_pages = math.ceil(total_actions / PAGE_SIZE) if total_actions > 0 else 1
 
     start = (page - 1) * PAGE_SIZE
     end = start + PAGE_SIZE
@@ -145,25 +123,7 @@ async def show_actions_list(
             current_actions, page, total_pages, action_type
         ),
     )
-
-
-@router.callback_query(F.data.startswith("admin:action:delete_list:"))
-async def delete_list_start(callback: CallbackQuery):
-    """Переход в режим удаления (первая страница)"""
-    # Проксируем вызов в show_actions_list с типом 'delete'
-    # Подменяем data чтобы хэндлер выше его поймал
-    callback.data = "admin:action:list:1:delete"
-    # Нам нужно вызвать функцию напрямую или через диспетчер,
-    # но проще просто изменить data и пусть роутер разберется,
-    # однако в aiogram так нельзя "перевызвать".
-    # Поэтому просто дублируем логику вызова (или вызываем функцию, передав аргументы)
-    # НО так как мы в асинхронной среде, лучше просто сделать отдельный хэндлер или
-    # явно вызвать show_actions_list.
-    # ДЛЯ ПРОСТОТЫ: я изменил callback.data в декораторе выше (startswith),
-    # поэтому просто скорректируйте вызов в кнопке меню (см. admin_kb.py).
-    pass
-    # Примечание: в admin_kb.py я уже поставил callback_data="admin:action:delete_list:1"
-    # Мы сделаем отдельный хэндлер-переходник:
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("admin:action:delete_list:"))
@@ -171,12 +131,8 @@ async def delete_mode_proxy(
     callback: CallbackQuery, action_repo: ActionRepository, admin_repo: AdminRepository
 ):
     """Переходник для режима удаления"""
-    # Меняем data для логики пагинации
     callback.data = "admin:action:list:1:delete"
     await show_actions_list(callback, action_repo, admin_repo)
-
-
-# ==================== ДОБАВЛЕНИЕ ДЕЙСТВИЯ (FSM) ====================
 
 
 @router.callback_query(F.data == "admin:action:add")
@@ -193,6 +149,7 @@ async def start_add_action(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ActionAddStates.waiting_for_name)
 async def process_name(message: Message, state: FSMContext):
+    """Обработка названия действия"""
     if message.text == "❌ Отмена":
         await state.clear()
         await message.answer("Отменено", reply_markup=get_admin_menu())
@@ -205,6 +162,7 @@ async def process_name(message: Message, state: FSMContext):
 
 @router.message(ActionAddStates.waiting_for_emoji)
 async def process_emoji(message: Message, state: FSMContext):
+    """Обработка эмодзи"""
     await state.update_data(emoji=message.text.strip())
     await state.set_state(ActionAddStates.waiting_for_infinitive)
     await message.answer(
@@ -215,6 +173,7 @@ async def process_emoji(message: Message, state: FSMContext):
 
 @router.message(ActionAddStates.waiting_for_infinitive)
 async def process_infinitive(message: Message, state: FSMContext):
+    """Обработка инфинитива"""
     await state.update_data(infinitive=message.text.lower().strip())
     await state.set_state(ActionAddStates.waiting_for_past)
     await message.answer(
@@ -225,6 +184,7 @@ async def process_infinitive(message: Message, state: FSMContext):
 
 @router.message(ActionAddStates.waiting_for_past)
 async def process_past(message: Message, state: FSMContext):
+    """Обработка прошедшего времени"""
     await state.update_data(past_tense=message.text.lower().strip())
     await state.set_state(ActionAddStates.waiting_for_noun)
     await message.answer(
@@ -239,10 +199,10 @@ async def process_past(message: Message, state: FSMContext):
 async def process_noun(
     message: Message, state: FSMContext, action_repo: ActionRepository
 ):
+    """Финальный шаг - сохранение действия"""
     data = await state.get_data()
     genitive_noun = message.text.lower().strip()
 
-    # Сохраняем в БД
     try:
         new_action = await action_repo.create(
             name=data["name"],
@@ -252,7 +212,6 @@ async def process_noun(
             genitive_noun=genitive_noun,
         )
 
-        # Очищаем кэш
         cache = await get_cache_service()
         if cache:
             await cache.invalidate_actions()
@@ -264,44 +223,76 @@ async def process_noun(
             parse_mode="Markdown",
         )
     except Exception as e:
-        logger.error(f"Error creating action: {e}")
+        logger.error(f"Error creating action: {e}", exc_info=True)
         await message.answer("❌ Ошибка при сохранении в БД.")
 
     await state.clear()
 
 
-# ==================== УДАЛЕНИЕ ДЕЙСТВИЯ ====================
-
-
 @router.callback_query(lambda c: c.data.startswith("admin:action:del_confirm:"))
 async def delete_action_confirm(callback: CallbackQuery, action_repo: ActionRepository):
+    """Подтверждение удаления действия"""
     action_id = int(callback.data.split(":")[-1])
 
     if await action_repo.delete(action_id):
-        # Очищаем кэш
         cache = await get_cache_service()
         if cache:
             await cache.invalidate_actions()
 
         await callback.answer("✅ Действие удалено!", show_alert=True)
-        # Обновляем список (возвращаемся на 1 страницу)
-        callback.data = "admin:action:list:1:delete"
-        # Вызываем логику показа (но здесь проще просто отправить новое сообщение или эмулировать)
-        # Для простоты просто удалим сообщение
-        await callback.message.delete()
-        await callback.message.answer("🗑 Действие удалено.")
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
     else:
         await callback.answer("❌ Ошибка удаления", show_alert=True)
 
 
-# ==================== КЭШ ====================
-
-
 @router.callback_query(F.data == "admin:cache:clear")
 async def clear_cache(callback: CallbackQuery):
+    """Очистка кэша"""
     cache = await get_cache_service()
     if cache:
         await cache.invalidate_actions()
         await callback.answer("✅ Кэш очищен!", show_alert=True)
     else:
         await callback.answer("⚠️ Redis не подключен", show_alert=True)
+
+
+@router.message(F.text == "👥 Статистика")
+async def admin_stats(
+    message: Message,
+    action_stat_repo: ActionStatRepository,
+    admin_repo: AdminRepository,
+):
+    """Показать общую статистику бота"""
+    if not await is_admin(message.from_user.id, admin_repo):
+        return
+
+    global_stats = await action_stat_repo.get_global_stats()
+
+    await message.answer(
+        "📊 **Глобальная статистика:**\n\n"
+        f"👥 Всего активных пользователей: `{global_stats['total_users']}`\n"
+        f"🔄 Всего совершено действий: `{global_stats['total_actions']}`\n",
+        parse_mode="Markdown",
+    )
+
+
+@router.message(F.text == "🧪 Тест команд")
+async def admin_test(message: Message, admin_repo: AdminRepository):
+    """Меню тестирования"""
+    if not await is_admin(message.from_user.id, admin_repo):
+        return
+
+    await message.answer(
+        "🧪 **Тестовый режим**\n\nВыберите действие из меню управления для теста.",
+        reply_markup=get_actions_management_menu(),
+        parse_mode="Markdown",
+    )
+
+
+@router.callback_query(F.data == "ignore")
+async def ignore_callback(callback: CallbackQuery):
+    """Игнорировать callback (для счётчика страниц)"""
+    await callback.answer()
