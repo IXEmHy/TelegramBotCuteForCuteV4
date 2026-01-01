@@ -33,10 +33,19 @@ class Settings(BaseSettings):
     db_max_overflow: Annotated[int, Field(default=10)]
     db_pool_timeout: Annotated[int, Field(default=30)]
 
+    # ============ Redis Settings ============
+    redis_host: Annotated[str, Field(default="localhost")]
+    redis_port: Annotated[int, Field(default=6379)]
+    redis_db: Annotated[int, Field(default=0)]
+
+    # ============ Rate Limiting ============
+    rate_limit_messages: Annotated[int, Field(default=30)]
+    rate_limit_window: Annotated[int, Field(default=60)]
+
     # ============ Logging ============
     log_level: Annotated[str, Field(default="INFO")]
 
-    # ============ Actions ============
+    # ============ Actions (Deprecated - будут загружаться из БД) ============
     actions: Annotated[
         list[str],
         Field(

@@ -1,81 +1,61 @@
 """
 Сервис для работы с пользователями
-
-Содержит бизнес-логику:
-- Регистрация/обновление пользователей
-- Получение статистики
-- Проверка существования
 """
 
+import logging
 from typing import Optional
 from aiogram.types import User as TelegramUser
 
 from bot.database.repositories import UserRepository
 from bot.database.models import User
 
+logger = logging.getLogger(__name__)
+
 
 class UserService:
-    """Сервис для работы с пользователями"""
+    """Сервис для бизнес-логики работы с пользователями"""
 
     def __init__(self, user_repo: UserRepository):
-        """
-        Инициализация сервиса
-
-        Args:
-            user_repo: Репозиторий пользователей
-        """
         self.user_repo = user_repo
 
     async def register_or_update_user(self, telegram_user: TelegramUser) -> User:
         """
-        Регистрирует нового пользователя или обновляет существующего
+        Регистрация или обновление пользователя из Telegram
 
         Args:
-            telegram_user: Объект пользователя из Telegram
+            telegram_user: Объект пользователя из aiogram
 
         Returns:
-            User: Модель пользователя из БД
+            User: Объект пользователя из базы данных
         """
-        return await self.user_repo.create_or_update(
+        # Формируем full_name из first_name и last_name
+        full_name_parts = [telegram_user.first_name]
+        if telegram_user.last_name:
+            full_name_parts.append(telegram_user.last_name)
+        full_name = " ".join(full_name_parts)
+
+        # Создаём или обновляем пользователя
+        user = await self.user_repo.create_or_update(
             user_id=telegram_user.id,
             username=telegram_user.username,
-            first_name=telegram_user.first_name,
-            last_name=telegram_user.last_name,
+            full_name=full_name,
         )
 
+        logger.debug(f"User {user.id} (@{user.username}) registered/updated")
+        return user
+
     async def get_user(self, user_id: int) -> Optional[User]:
-        """
-        Получает пользователя по ID
-
-        Args:
-            user_id: Telegram ID пользователя
-
-        Returns:
-            Optional[User]: Пользователь или None
-        """
+        """Получить пользователя по ID"""
         return await self.user_repo.get_by_id(user_id)
 
-    async def get_user_stats(self, user_id: int) -> dict:
+    async def get_user_display_name(self, user: User) -> str:
         """
-        Получает статистику пользователя
-
-        Args:
-            user_id: Telegram ID пользователя
-
-        Returns:
-            dict: Словарь со статистикой {sent, received, accepted}
+        Получить отображаемое имя пользователя
+        Приоритет: full_name -> username -> "User {id}"
         """
-        return await self.user_repo.get_stats(user_id)
-
-    async def user_exists(self, user_id: int) -> bool:
-        """
-        Проверяет существование пользователя
-
-        Args:
-            user_id: Telegram ID
-
-        Returns:
-            bool: True если пользователь существует
-        """
-        user = await self.get_user(user_id)
-        return user is not None
+        if user.full_name:
+            return user.full_name
+        elif user.username:
+            return f"@{user.username}"
+        else:
+            return f"User {user.id}"
