@@ -1,48 +1,42 @@
 """
 Reply клавиатуры (обычные кнопки)
+Кнопки отправляют команды вместо текста
 """
 
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-from bot.core.commands import CMD
 
 
 def get_user_main_keyboard() -> ReplyKeyboardMarkup:
     """Главная клавиатура для обычного пользователя"""
     keyboard = [
-        [KeyboardButton(text=CMD.BTN_ACTIONS)],
-        [KeyboardButton(text=CMD.BTN_HOW_TO_USE)],
-        [KeyboardButton(text=CMD.BTN_MY_STATS)],
+        [KeyboardButton(text="/help")],
+        [KeyboardButton(text="/stats")],
     ]
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
         resize_keyboard=True,
-        input_field_placeholder="Выберите действие...",
+        input_field_placeholder="Выберите команду...",
     )
 
 
 def get_admin_main_keyboard() -> ReplyKeyboardMarkup:
     """Главная клавиатура для администратора"""
     keyboard = [
-        [KeyboardButton(text=CMD.BTN_ACTIONS)],
-        [KeyboardButton(text=CMD.BTN_HOW_TO_USE)],
-        [KeyboardButton(text=CMD.BTN_MY_STATS)],
-        [
-            KeyboardButton(text=CMD.BTN_ADMIN_STATS),
-            KeyboardButton(text=CMD.BTN_ADMIN_ACTIONS),
-        ],
-        [KeyboardButton(text=CMD.BTN_ADMIN_TEST)],
+        [KeyboardButton(text="/help")],
+        [KeyboardButton(text="/stats")],
+        [KeyboardButton(text="/admin")],
     ]
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
         resize_keyboard=True,
-        input_field_placeholder="Выберите действие...",
+        input_field_placeholder="Выберите команду...",
     )
 
 
 def get_admin_exit_keyboard() -> ReplyKeyboardMarkup:
     """Клавиатура выхода из админ-панели"""
     keyboard = [
-        [KeyboardButton(text=CMD.BTN_ADMIN_EXIT)],
+        [KeyboardButton(text="/start")],
     ]
     return ReplyKeyboardMarkup(
         keyboard=keyboard,

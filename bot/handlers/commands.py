@@ -3,7 +3,7 @@
 """
 
 import logging
-from aiogram import Router, F
+from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
@@ -16,7 +16,6 @@ from bot.services.user import UserService
 from bot.utils.formatters import format_stats_message
 from bot.keyboards.reply_kb import get_user_main_keyboard, get_admin_main_keyboard
 from bot.core.config import settings
-from bot.core.commands import CMD
 
 router = Router(name="commands")
 logger = logging.getLogger(__name__)
@@ -42,7 +41,7 @@ async def cmd_start(message: Message, user_repo: UserRepository):
     # Выбор клавиатуры
     keyboard = get_admin_main_keyboard() if is_admin else get_user_main_keyboard()
 
-    role_info = "\n<b>Вы администратор.</b>" if is_admin else ""
+    role_info = "\n<b>🔐 Вы администратор.</b>" if is_admin else ""
 
     welcome_text = (
         f"<b>👋 Привет, {user.full_name}!</b>{role_info}\n\n"
@@ -59,7 +58,6 @@ async def cmd_start(message: Message, user_repo: UserRepository):
     await message.answer(welcome_text, parse_mode="HTML", reply_markup=keyboard)
 
 
-@router.message(F.text == CMD.BTN_ACTIONS)
 @router.message(Command("help"))
 async def cmd_help(message: Message, action_repo: ActionRepository):
     """Показать доступные паки действий"""
@@ -138,21 +136,6 @@ async def cmd_pack(message: Message, action_repo: ActionRepository):
     await message.answer(text[:4000], parse_mode="HTML")
 
 
-@router.message(F.text == CMD.BTN_HOW_TO_USE)
-async def use_bot_info(message: Message):
-    """Инструкция по использованию бота"""
-    await message.answer(
-        "<b>📖 Как использовать бота:</b>\n\n"
-        "1. Перейди в любой чат или группу\n"
-        "2. Начни вводить <code>@CuteForCuteBot</code> и название действия\n"
-        "3. Выбери нужное действие из списка\n"
-        "4. Отправь!\n\n"
-        "<i>Получатель сможет принять или отклонить твоё действие.</i>",
-        parse_mode="HTML",
-    )
-
-
-@router.message(F.text == CMD.BTN_MY_STATS)
 @router.message(Command("stats"))
 async def cmd_stats(
     message: Message,
@@ -187,31 +170,20 @@ async def cmd_stats(
 
 
 @router.message(Command("admin"))
-async def cmd_admin(message: Message):
-    """Админ-панель (заглушка)"""
-    if message.from_user.id != settings.admin_id:
-        return
-
-    text = (
-        "<b>⚙️ Админ-панель</b>\n\n"
-        "Доступные команды:\n"
-        "• <code>/stats_global</code> - Глобальная статистика\n"
-        "• <code>/broadcast</code> - Рассылка\n"
-    )
-    await message.answer(text, parse_mode="HTML")
-
-
-@router.message(F.text == CMD.BTN_ADMIN_STATS)
-async def admin_stats_button(message: Message, action_stat_repo: ActionStatRepository):
-    """Глобальная статистика (кнопка)"""
+async def cmd_admin(message: Message, action_stat_repo: ActionStatRepository):
+    """Админ-панель с глобальной статистикой"""
     if message.from_user.id != settings.admin_id:
         return
 
     stats = await action_stat_repo.get_global_stats()
 
     text = (
-        "<b>📊 Глобальная статистика:</b>\n\n"
-        f"👥 Всего пользователей: <b>{stats['total_users']}</b>\n"
-        f"🔄 Всего действий: <b>{stats['total_actions']}</b>\n"
+        "<b>⚙️ Админ-панель</b>\n\n"
+        "<b>📊 Глобальная статистика:</b>\n"
+        f"👥 Всего пользователей: <b>{stats.get('total_users', 0)}</b>\n"
+        f"🔄 Всего действий: <b>{stats.get('total_actions', 0)}</b>\n\n"
+        "<b>Доступные команды:</b>\n"
+        "• <code>/broadcast</code> - Рассылка сообщений\n"
+        "• <code>/stats</code> - Ваша статистика\n"
     )
     await message.answer(text, parse_mode="HTML")
