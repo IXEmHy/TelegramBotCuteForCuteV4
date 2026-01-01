@@ -35,7 +35,8 @@ async def set_bot_commands(bot: Bot):
     """Установка списка команд бота"""
     commands_list = [
         BotCommand(command="start", description="🚀 Запустить бота"),
-        BotCommand(command="help", description="📖 Помощь"),
+        BotCommand(command="help", description="📦 Доступные паки"),
+        BotCommand(command="pack", description="📚 Действия в паке"),
         BotCommand(command="stats", description="📊 Моя статистика"),
         BotCommand(command="admin", description="⚙️ Админ-панель"),
     ]
@@ -66,7 +67,7 @@ async def on_startup(bot: Bot):
         start_time = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
 
         startup_message = f"""
-🚀 БОТ ЗАПУЩЕН
+🚀 <b>БОТ ЗАПУЩЕН</b>
 
 ✅ Все системы активны
 ✅ База данных подключена
@@ -88,7 +89,7 @@ async def on_shutdown(bot: Bot):
     stop_time = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
 
     shutdown_message = f"""
-🛑 БОТ ОСТАНОВЛЕН
+🛑 <b>БОТ ОСТАНОВЛЕН</b>
 
 ⚠️ Все системы отключены
 💾 Соединения с БД закрыты

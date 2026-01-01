@@ -19,13 +19,8 @@ def get_user_mention(user: User) -> str:
 
     Returns:
         str: HTML ссылка вида <a href="tg://user?id=123">Имя Фамилия</a>
-
-    Example:
-        >>> user = User(id=123, first_name="Иван", last_name="Петров")
-        >>> get_user_mention(user)
-        '<a href="tg://user?id=123">Иван Петров</a>'
     """
-    full_name = user.full_name  # Уже содержит first_name + last_name
+    full_name = user.full_name
     return f'<a href="tg://user?id={user.id}">{full_name}</a>'
 
 
@@ -39,10 +34,6 @@ def get_user_mention_by_id(user_id: int, name: str) -> str:
 
     Returns:
         str: HTML ссылка на профиль пользователя
-
-    Example:
-        >>> get_user_mention_by_id(123, "Иван")
-        '<a href="tg://user?id=123">Иван</a>'
     """
     return f'<a href="tg://user?id={user_id}">{name}</a>'
 
@@ -57,10 +48,6 @@ def format_action_text(action: str, form: str = "infinitive") -> str:
 
     Returns:
         str: Отформатированное действие
-
-    Example:
-        >>> format_action_text("погладить", "infinitive")
-        'погладить'
     """
     # Словарь форм действий (можно расширить)
     action_forms = {
@@ -106,42 +93,65 @@ def format_stats_message(username: str, stats: dict) -> str:
 
     Args:
         username: Имя пользователя
-        stats: Словарь со статистикой (sent, received, accepted)
+        stats: Словарь со статистикой (total_sent, total_received, total_accepted, top_actions)
 
     Returns:
         str: Отформатированное сообщение
-
-    Example:
-        >>> stats = {'sent': 10, 'received': 15, 'accepted': 12}
-        >>> print(format_stats_message("Иван", stats))
     """
-    message = f"""
-📊 <b>Статистика пользователя {username}</b>
+    total_sent = stats.get("total_sent", 0)
+    total_received = stats.get("total_received", 0)
+    total_accepted = stats.get("total_accepted", 0)
+    top_actions = stats.get("top_actions", [])
 
-📤 Отправлено действий: <b>{stats["sent"]}</b>
-📥 Получено действий: <b>{stats["received"]}</b>
-✅ Принято действий: <b>{stats["accepted"]}</b>
+    # Вычисляем процент харизмы
+    charisma = _calculate_acceptance_rate(stats)
 
-💝 Процент принятия: <b>{_calculate_acceptance_rate(stats)}%</b>
+    message = f"""<b>📊 Статистика {username}:</b>
+
+💌 Отправлено действий: <b>{total_sent}</b>
+📬 Получено действий: <b>{total_received}</b>
+💖 Принято другими: <b>{total_accepted}</b>
+✨ Харизма: <b>{charisma}%</b>
 """
+
+    # Добавляем топ действий если есть
+    if top_actions:
+        message += "\n<b>🏆 Любимые действия:</b>\n"
+        for i, (action_name, count) in enumerate(top_actions, 1):
+            # Получаем эмодзи действия
+            from bot.core.config import settings
+
+            emoji = settings.action_emojis.get(action_name, "❓")
+
+            # Склоняем слово "раз"
+            if count == 1:
+                times_word = "раз"
+            elif 2 <= count <= 4:
+                times_word = "раза"
+            else:
+                times_word = "раз"
+
+            message += f"{i}. {emoji} {action_name} — {count} {times_word}\n"
+
     return message.strip()
 
 
-def _calculate_acceptance_rate(stats: dict) -> int:
+def _calculate_acceptance_rate(stats: dict) -> float:
     """
-    Вычисляет процент принятых взаимодействий
+    Вычисляет процент принятых взаимодействий (харизма)
 
     Args:
         stats: Словарь со статистикой
 
     Returns:
-        int: Процент принятия (0-100)
+        float: Процент принятия (0.0-100.0)
     """
-    received = stats.get("received", 0)
-    if received == 0:
-        return 0
-    accepted = stats.get("accepted", 0)
-    return int((accepted / received) * 100)
+    total_sent = stats.get("total_sent", 0)
+    if total_sent == 0:
+        return 0.0
+
+    total_accepted = stats.get("total_accepted", 0)
+    return round((total_accepted / total_sent) * 100, 1)
 
 
 def escape_html(text: str) -> str:
@@ -153,10 +163,6 @@ def escape_html(text: str) -> str:
 
     Returns:
         str: Текст с экранированными символами
-
-    Example:
-        >>> escape_html("<script>alert('test')</script>")
-        '&lt;script&gt;alert(&#x27;test&#x27;)&lt;/script&gt;'
     """
     return (
         text.replace("&", "&amp;")
