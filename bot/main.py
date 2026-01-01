@@ -33,12 +33,14 @@ logger = logging.getLogger(__name__)
 
 async def set_bot_commands(bot: Bot):
     """Установка списка команд бота"""
+    from bot.core.commands import CMD
+
     commands_list = [
-        BotCommand(command="start", description="🚀 Запустить бота"),
-        BotCommand(command="help", description="📦 Доступные паки"),
-        BotCommand(command="pack", description="📚 Действия в паке"),
-        BotCommand(command="stats", description="📊 Моя статистика"),
-        BotCommand(command="admin", description="⚙️ Админ-панель"),
+        BotCommand(command="start", description=CMD.DESC_START),
+        BotCommand(command="help", description=CMD.DESC_HELP),
+        BotCommand(command="pack", description=CMD.DESC_PACK),
+        BotCommand(command="stats", description=CMD.DESC_STATS),
+        BotCommand(command="admin", description=CMD.DESC_ADMIN),
     ]
 
     await bot.set_my_commands(commands_list, scope=BotCommandScopeDefault())

@@ -1,46 +1,50 @@
 """
-Reply клавиатуры для бота (обычные кнопки внизу экрана)
+Reply клавиатуры (обычные кнопки)
 """
 
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from bot.core.commands import CMD
 
 
 def get_user_main_keyboard() -> ReplyKeyboardMarkup:
-    """Клавиатура пользователя"""
+    """Главная клавиатура для обычного пользователя"""
+    keyboard = [
+        [KeyboardButton(text=CMD.BTN_ACTIONS)],
+        [KeyboardButton(text=CMD.BTN_HOW_TO_USE)],
+        [KeyboardButton(text=CMD.BTN_MY_STATS)],
+    ]
     return ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="✨ Использовать бота"),
-            ],
-            [
-                KeyboardButton(text="📜 Список действий"),
-            ],
-            [
-                KeyboardButton(text="📊 Моя статистика"),
-                KeyboardButton(text="📖 Помощь"),
-            ],
-        ],
+        keyboard=keyboard,
         resize_keyboard=True,
         input_field_placeholder="Выберите действие...",
     )
 
 
 def get_admin_main_keyboard() -> ReplyKeyboardMarkup:
-    """Клавиатура админа (те же кнопки, но логика может отличаться)"""
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="✨ Использовать бота"),
-            ],
-            [
-                KeyboardButton(text="📜 Список действий"),
-            ],
-            [
-                KeyboardButton(text="📊 Моя статистика"),
-                KeyboardButton(text="📖 Помощь"),
-            ],
-            # Админские функции теперь через команды (/admin)
+    """Главная клавиатура для администратора"""
+    keyboard = [
+        [KeyboardButton(text=CMD.BTN_ACTIONS)],
+        [KeyboardButton(text=CMD.BTN_HOW_TO_USE)],
+        [KeyboardButton(text=CMD.BTN_MY_STATS)],
+        [
+            KeyboardButton(text=CMD.BTN_ADMIN_STATS),
+            KeyboardButton(text=CMD.BTN_ADMIN_ACTIONS),
         ],
+        [KeyboardButton(text=CMD.BTN_ADMIN_TEST)],
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
         resize_keyboard=True,
-        input_field_placeholder="Режим администратора...",
+        input_field_placeholder="Выберите действие...",
+    )
+
+
+def get_admin_exit_keyboard() -> ReplyKeyboardMarkup:
+    """Клавиатура выхода из админ-панели"""
+    keyboard = [
+        [KeyboardButton(text=CMD.BTN_ADMIN_EXIT)],
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True,
     )

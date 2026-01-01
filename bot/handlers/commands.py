@@ -16,9 +16,15 @@ from bot.services.user import UserService
 from bot.utils.formatters import format_stats_message
 from bot.keyboards.reply_kb import get_user_main_keyboard, get_admin_main_keyboard
 from bot.core.config import settings
+from bot.core.commands import CMD
 
 router = Router(name="commands")
 logger = logging.getLogger(__name__)
+
+
+# ============================================
+# ОСНОВНЫЕ КОМАНДЫ
+# ============================================
 
 
 @router.message(Command("start"))
@@ -53,8 +59,7 @@ async def cmd_start(message: Message, user_repo: UserRepository):
     await message.answer(welcome_text, parse_mode="HTML", reply_markup=keyboard)
 
 
-@router.message(F.text == "📜 Доступные действия")
-@router.message(F.text == "📚 Все действия")
+@router.message(F.text == CMD.BTN_ACTIONS)
 @router.message(Command("help"))
 async def cmd_help(message: Message, action_repo: ActionRepository):
     """Показать доступные паки действий"""
@@ -133,7 +138,7 @@ async def cmd_pack(message: Message, action_repo: ActionRepository):
     await message.answer(text[:4000], parse_mode="HTML")
 
 
-@router.message(F.text == "ℹ️ Как использовать")
+@router.message(F.text == CMD.BTN_HOW_TO_USE)
 async def use_bot_info(message: Message):
     """Инструкция по использованию бота"""
     await message.answer(
@@ -147,7 +152,7 @@ async def use_bot_info(message: Message):
     )
 
 
-@router.message(F.text == "📊 Моя статистика")
+@router.message(F.text == CMD.BTN_MY_STATS)
 @router.message(Command("stats"))
 async def cmd_stats(
     message: Message,
@@ -176,6 +181,11 @@ async def cmd_stats(
     await message.answer(text, parse_mode="HTML")
 
 
+# ============================================
+# АДМИНСКИЕ КОМАНДЫ
+# ============================================
+
+
 @router.message(Command("admin"))
 async def cmd_admin(message: Message):
     """Админ-панель (заглушка)"""
@@ -187,5 +197,21 @@ async def cmd_admin(message: Message):
         "Доступные команды:\n"
         "• <code>/stats_global</code> - Глобальная статистика\n"
         "• <code>/broadcast</code> - Рассылка\n"
+    )
+    await message.answer(text, parse_mode="HTML")
+
+
+@router.message(F.text == CMD.BTN_ADMIN_STATS)
+async def admin_stats_button(message: Message, action_stat_repo: ActionStatRepository):
+    """Глобальная статистика (кнопка)"""
+    if message.from_user.id != settings.admin_id:
+        return
+
+    stats = await action_stat_repo.get_global_stats()
+
+    text = (
+        "<b>📊 Глобальная статистика:</b>\n\n"
+        f"👥 Всего пользователей: <b>{stats['total_users']}</b>\n"
+        f"🔄 Всего действий: <b>{stats['total_actions']}</b>\n"
     )
     await message.answer(text, parse_mode="HTML")
