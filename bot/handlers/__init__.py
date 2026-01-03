@@ -5,6 +5,7 @@
 from . import commands
 from . import callbacks
 from . import inline
-from . import admin  # <--- ДОБАВЬ ЭТУ СТРОКУ
+from . import admin
+from . import gender  # ← ДОБАВЛЕНА СТРОКА
 
-__all__ = ["commands", "callbacks", "inline", "admin"]
+__all__ = ["commands", "callbacks", "inline", "admin", "gender"]  # ← ДОБАВЛЕН "gender"

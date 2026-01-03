@@ -24,7 +24,7 @@ from bot.middlewares.database import DatabaseMiddleware
 from bot.middlewares.throttling import ThrottlingMiddleware
 
 # Роутеры
-from bot.handlers import commands, callbacks, inline, admin
+from bot.handlers import commands, callbacks, inline, admin, gender  # ← ДОБАВЛЕН gender
 
 # Инициализация логирования
 setup_logging()
@@ -40,6 +40,7 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="help", description="📖 Список действий"),
         BotCommand(command="pack", description="📦 Паки действий"),
         BotCommand(command="stats", description="📊 Моя статистика"),
+        BotCommand(command="gender", description="⚧️ Настройки пола"),  # ← ДОБАВЛЕНО
     ]
 
     await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
@@ -51,6 +52,7 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="help", description="📖 Список действий"),
         BotCommand(command="pack", description="📦 Паки действий"),
         BotCommand(command="stats", description="📊 Моя статистика"),
+        BotCommand(command="gender", description="⚧️ Настройки пола"),  # ← ДОБАВЛЕНО
         BotCommand(command="stats_global", description="📊 Глобальная статистика"),
         BotCommand(command="add_action", description="➕ Добавить действие"),
         BotCommand(command="list_actions", description="📋 Список действий"),
@@ -91,6 +93,7 @@ async def on_startup(bot: Bot):
 ✅ Все системы активны
 ✅ База данных подключена
 ✅ Обработчики загружены
+✅ Система выбора пола активна
 
 ⏰ Время запуска: {start_time}
 🤖 Бот готов к работе!
@@ -149,6 +152,7 @@ async def main():
 
     # 4. Регистрация Роутеров
     dp.include_router(admin.router)  # Админка (должна быть первой)
+    dp.include_router(gender.router)  # ← ДОБАВЛЕН: Выбор/изменение пола
     dp.include_router(commands.router)  # Базовые команды (/start, /help, /stats)
     dp.include_router(callbacks.router)  # Обработка кнопок
     dp.include_router(inline.router)  # Inline режим
