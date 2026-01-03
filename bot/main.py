@@ -9,7 +9,7 @@ from datetime import datetime
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage  # ← ИЗМЕНЕНО: Redis вместо Memory
 from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
 
 # Конфигурация и логирование
@@ -24,7 +24,7 @@ from bot.middlewares.database import DatabaseMiddleware
 from bot.middlewares.throttling import ThrottlingMiddleware
 
 # Роутеры
-from bot.handlers import commands, callbacks, inline, admin, gender  # ← ДОБАВЛЕН gender
+from bot.handlers import commands, callbacks, inline, admin, gender
 
 # Инициализация логирования
 setup_logging()
@@ -40,7 +40,7 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="help", description="📖 Список действий"),
         BotCommand(command="pack", description="📦 Паки действий"),
         BotCommand(command="stats", description="📊 Моя статистика"),
-        BotCommand(command="gender", description="⚧️ Настройки пола"),  # ← ДОБАВЛЕНО
+        BotCommand(command="gender", description="⚧️ Настройки пола"),
     ]
 
     await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
@@ -52,7 +52,7 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="help", description="📖 Список действий"),
         BotCommand(command="pack", description="📦 Паки действий"),
         BotCommand(command="stats", description="📊 Моя статистика"),
-        BotCommand(command="gender", description="⚧️ Настройки пола"),  # ← ДОБАВЛЕНО
+        BotCommand(command="gender", description="⚧️ Настройки пола"),
         BotCommand(command="stats_global", description="📊 Глобальная статистика"),
         BotCommand(command="add_action", description="➕ Добавить действие"),
         BotCommand(command="list_actions", description="📋 Список действий"),
@@ -92,6 +92,7 @@ async def on_startup(bot: Bot):
 
 ✅ Все системы активны
 ✅ База данных подключена
+✅ Redis FSM Storage активен
 ✅ Обработчики загружены
 ✅ Система выбора пола активна
 
@@ -115,6 +116,7 @@ async def on_shutdown(bot: Bot):
 
 ⚠️ Все системы отключены
 💾 Соединения с БД закрыты
+💾 Redis соединения закрыты
 
 ⏰ Время остановки: {stop_time}
 👋 До новых встреч!
@@ -129,7 +131,7 @@ async def main():
     # 1. Инициализация зависимостей
     engine = get_engine()
 
-    # Подключаем Redis (для кэша)
+    # Подключаем Redis для FSM и кэша
     redis = await get_redis()
 
     # 2. Настройка бота и диспетчера
@@ -138,8 +140,8 @@ async def main():
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
 
-    # Используем MemoryStorage для FSM (состояний)
-    storage = MemoryStorage()
+    # Используем RedisStorage для FSM (состояний) - работает при масштабировании!
+    storage = RedisStorage(redis=redis)
     dp = Dispatcher(storage=storage)
 
     # 3. Регистрация Middleware (порядок важен!)
@@ -152,7 +154,7 @@ async def main():
 
     # 4. Регистрация Роутеров
     dp.include_router(admin.router)  # Админка (должна быть первой)
-    dp.include_router(gender.router)  # ← ДОБАВЛЕН: Выбор/изменение пола
+    dp.include_router(gender.router)  # Выбор/изменение пола
     dp.include_router(commands.router)  # Базовые команды (/start, /help, /stats)
     dp.include_router(callbacks.router)  # Обработка кнопок
     dp.include_router(inline.router)  # Inline режим
