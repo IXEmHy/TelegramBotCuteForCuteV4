@@ -81,8 +81,17 @@ services:
       - ./logs:/app/logs
       # Для разработки: синхронизация кода (закомментировать в продакшене)
       # - ./bot:/app/bot:ro
+    ports:
+      - "8080:8080"  # Health Check API
     networks:
       - cute_bot_network
+    # Health check для бота
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     deploy:
       resources:
         limits:

@@ -27,8 +27,9 @@ RUN apt-get update && apt-get install -y \
     g++ \
     postgresql-client \
     libpq-dev \
+    wget \
     && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && apt-get clean 
 
 # Обновляем pip, setuptools, wheel
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
